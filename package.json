@@ -11,11 +11,13 @@
     "dist"
   ],
   "scripts": {
-    "prepublishs": "yarn run build",
+    "prepublish": "yarn run build",
     "build": "tsc",
     "build:check": "tsc --noEmit",
     "jest": "NODE_ENV=test jest",
-    "lint": "tslint -p tsconfig.json -t stylish 'src/**/*.{ts,tsx}'"
+    "format": "prettier --write \"src/**/*.ts\" \"src/**/*.js\"",
+    "lint": "tslint -p tsconfig.json",
+    "travis": "yarn run jest"
   },
   "repository": {
     "type": "git",
@@ -44,6 +46,7 @@
     "ts-jest": "^24.3.0",
     "ts-node": "^8.5.4",
     "tslint": "^5.20.1",
+    "tslint-config-prettier": "^1.18.0",
     "typescript": "^3.7.4",
     "yup": "^0.28.0"
   },

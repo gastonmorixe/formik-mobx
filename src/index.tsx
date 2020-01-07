@@ -18,10 +18,7 @@ import { CONTEXTS } from "./contexts"
 
 const win = window as any
 
-type TFormikActions = Pick<
-  IFormikInternalStore,
-  "setSubmitting" | "setErrors"
-> & {}
+type TFormikActions = Pick<IFormikInternalStore, "setSubmitting" | "setErrors"> & {}
 
 type IFormikChildFunction = (options: {
   ctxData: IFormikContext
@@ -260,17 +257,12 @@ export const Formik = React.memo<IFormik>(props => {
     //
     // Undo Manager
     if (props.undoManagerBlacklist) {
-      internal.undoManager = new UndoManager(
-        internal.values,
-        props.undoManagerBlacklist,
-        (change, path, root) => {
-          const name = (change as any).name as string
-          internal.modified[name] = true
-        }
-      )
+      internal.undoManager = new UndoManager(internal.values, props.undoManagerBlacklist, (change, path, root) => {
+        const name = (change as any).name as string
+        internal.modified[name] = true
+      })
 
-      win["__undoManager__" + Math.round(Math.random() * 100)] =
-        internal.undoManager // debugging
+      win["__undoManager__" + Math.round(Math.random() * 100)] = internal.undoManager // debugging
     }
 
     //
@@ -323,62 +315,56 @@ export const Formik = React.memo<IFormik>(props => {
   return <FormikInternal internal={store} {...props} />
 })
 
-export const FormikInternal = React.memo<
-  IFormik & { internal: IFormikInternalStore }
->(({ schema, children, onSubmit, internal }) => {
-  const ctx = CONTEXTS["formik"]
+export const FormikInternal = React.memo<IFormik & { internal: IFormikInternalStore }>(
+  ({ schema, children, onSubmit, internal }) => {
+    const ctx = CONTEXTS["formik"]
 
-  const [actions] = React.useState<TFormikActions>(() => {
-    return {
-      setSubmitting: internal.setSubmitting,
-      setErrors: internal.setErrors
-    }
-  })
-
-  const onSubmitWrapped = async (ev: React.FormEvent<HTMLFormElement>) => {
-    if (internal.submitting) return
-    // todo timeout and give a callback to cancel request?
-    internal.submitting = true
-
-    for (const key in internal.errors) {
-      delete internal.errors[key as string]
-    }
-
-    try {
-      if (schema) {
-        ev.preventDefault()
-        await schema.validate(internal.values, { abortEarly: false })
+    const [actions] = React.useState<TFormikActions>(() => {
+      return {
+        setSubmitting: internal.setSubmitting,
+        setErrors: internal.setErrors
       }
-    } catch (error) {
-      for (const e of error.inner) {
-        internal.errors[e.path] = e.message
+    })
+
+    const onSubmitWrapped = async (ev: React.FormEvent<HTMLFormElement>) => {
+      if (internal.submitting) return
+      // todo timeout and give a callback to cancel request?
+      internal.submitting = true
+
+      for (const key in internal.errors) {
+        delete internal.errors[key as string]
       }
-      internal.submitting = false
-      return
+
+      try {
+        if (schema) {
+          ev.preventDefault()
+          await schema.validate(internal.values, { abortEarly: false })
+        }
+      } catch (error) {
+        for (const e of error.inner) {
+          internal.errors[e.path] = e.message
+        }
+        internal.submitting = false
+        return
+      }
+
+      onSubmit(ev, internal, actions)
     }
 
-    onSubmit(ev, internal, actions)
+    const ctxData: IFormikContext = {
+      onSubmit: onSubmitWrapped,
+      internal
+    }
+
+    return (
+      <ctx.Provider value={ctxData}>
+        {typeof children === "function" ? children({ ctxData, ctx, internal, actions }) : children}
+      </ctx.Provider>
+    )
   }
+)
 
-  const ctxData: IFormikContext = {
-    onSubmit: onSubmitWrapped,
-    internal
-  }
-
-  return (
-    <ctx.Provider value={ctxData}>
-      {typeof children === "function"
-        ? children({ ctxData, ctx, internal, actions })
-        : children}
-    </ctx.Provider>
-  )
-})
-
-type IFieldChildrenFunction = (options: {
-  value: any
-  touched: boolean
-  error: any
-}) => any
+type IFieldChildrenFunction = (options: { value: any; touched: boolean; error: any }) => any
 type IFieldChildren = JSX.Element | IFieldChildrenFunction
 
 interface IField extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -396,11 +382,7 @@ export const useFormikCtx: () => IFormikContext = () => {
   return ctx
 }
 
-export const ObserveFormik = ({
-  children
-}: {
-  children: (ctx: IFormikContext) => JSX.Element
-}) => {
+export const ObserveFormik = ({ children }: { children: (ctx: IFormikContext) => JSX.Element }) => {
   const ctx = useFormikCtx()
   return useObserver<JSX.Element>(() => {
     return children(ctx)
@@ -448,9 +430,7 @@ export const Field = React.memo<IField>(
 
     return useObserver(() => {
       let value = computedName
-        ? ctx.internal.values[computedName](
-            computedId ? String(computedId) : undefined
-          )
+        ? ctx.internal.values[computedName](computedId ? String(computedId) : undefined)
         : name
         ? get(ctx.internal.values, name)
         : undefined
