@@ -14,6 +14,6 @@
     "strict": true,
     "jsx": "react"
   },
-  "exclude": ["dist", "node_modules", "**/*.spec.ts"],
+  "exclude": ["dist", "node_modules", "**/*.spec.ts", "**/*.spec.tsx"],
   "include": ["src"]
 }

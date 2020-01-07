@@ -24,4 +24,4 @@ jobs:
       # - name: lint
       #   run: yarn run lint
       - name: test
-        run: npm test
+        run: yarn run test
