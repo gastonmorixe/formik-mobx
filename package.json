@@ -1,0 +1,61 @@
+{
+  "name": "formik-mobx",
+  "version": "1.0.0",
+  "description": "Formik Mobx Edition - Fully Reactive & Highly Performant",
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepublishs": "yarn run build",
+    "build": "tsc",
+    "build:check": "tsc --noEmit",
+    "jest": "NODE_ENV=test jest",
+    "lint": "tslint -p tsconfig.json -t stylish 'src/**/*.{ts,tsx}'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com//gastonmorixe/formik-mobx.git"
+  },
+  "keywords": [
+    "formik",
+    "forms",
+    "react",
+    "hooks",
+    "react-hooks",
+    "render-props",
+    "react-native"
+  ],
+  "author": "Gaston Morixe <gaston@gastonmorixe.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^24.0.25",
+    "@types/lodash": "^4.14.149",
+    "@types/node": "^13.1.4",
+    "@types/react": "^16.9.17",
+    "@types/react-dom": "^16.9.4",
+    "@types/yup": "^0.26.27",
+    "jest": "^24.9.0",
+    "prettier": "^1.19.1",
+    "ts-jest": "^24.3.0",
+    "ts-node": "^8.5.4",
+    "tslint": "^5.20.1",
+    "typescript": "^3.7.4",
+    "yup": "^0.28.0"
+  },
+  "peerDependencies": {
+    "react": "experimental ||",
+    "react-dom": "experimental || >= 16.11.x"
+  },
+  "dependencies": {
+    "lodash": "^4.17.15",
+    "mobx": "^5.15.1",
+    "mobx-react-lite": "^1.5.2",
+    "mobx-sync": "^2.1.2",
+    "mobx-utils": "^5.5.2"
+  }
+}
