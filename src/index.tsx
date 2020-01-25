@@ -9,7 +9,7 @@ import {
 } from "mobx-react-lite"
 import get from "lodash/get"
 import set from "lodash/set"
-import { observable, reaction, IReactionDisposer } from "mobx"
+import { observable, reaction, IReactionDisposer, values } from "mobx"
 // import { useLocalStore, useObserver } from "mobx-react";
 // import { computedFn } from "mobx-utils"
 
@@ -18,13 +18,27 @@ import { CONTEXTS } from "./contexts"
 
 const win = window as any
 
-type TFormikActions = Pick<IFormikInternalStore, "setSubmitting" | "setErrors"> & {}
+interface IFormikValues {
+  [field: string]: any
+}
 
-type IFormikChildFunction = (options: {
-  ctxData: IFormikContext
+type TFormikErrors<Values> = {
+  [K in keyof Values]?: any
+} & { base?: any }
+type TFormikTouched<Values> = {
+  [K in keyof Values]?: any
+}
+type TFormikModified<Values> = {
+  [K in keyof Values]?: any
+}
+
+type TFormikActions<Values> = Pick<IFormikInternalStore<Values>, "setSubmitting" | "setErrors"> & {}
+
+type IFormikChildFunction<Values> = (options: {
+  ctxData: IFormikContext<Values>
   ctx: React.Context<unknown>
-  internal: IFormikInternalStore
-  actions: TFormikActions
+  internal: IFormikInternalStore<Values>
+  actions: TFormikActions<Values>
 }) => JSX.Element
 
 const handleBeforeUnload = (ev: BeforeUnloadEvent) => {
@@ -32,33 +46,33 @@ const handleBeforeUnload = (ev: BeforeUnloadEvent) => {
   ev.returnValue = `You have unsaved changes. are you sure you want to leave?`
 }
 
-export interface IFormik {
+export interface IFormik<Values> {
   preventUnloadWhenDirty?: boolean
   persistBlacklist?: string[]
   undoManagerBlacklist?: string[]
   FallbackComponent?: React.ComponentType
   schema?: yup.Schema<unknown>
-  children?: JSX.Element | IFormikChildFunction
+  children?: JSX.Element | IFormikChildFunction<Values>
   // validate?: (values: TFormikValues) => void;
   // internalStore: TFormikValues
-  initialValues: Record<string, any>
+  initialValues: Values
   onSubmit: (
     ev: React.FormEvent<HTMLFormElement>,
-    values: IFormikInternalStore["values"],
-    actions: TFormikActions
+    internal: IFormikInternalStore<Values>,
+    actions: TFormikActions<Values>
   ) => void
 }
 
-export interface IFormikInternalStore {
+export interface IFormikInternalStore<Values> {
   undoManager?: UndoManager
   submitting: boolean
-  touched: Record<string, any>
-  modified: Record<string, any>
-  initialValues: IFormik["initialValues"]
-  values: IFormik["initialValues"]
-  errors: Record<string, any>
+  touched: TFormikTouched<Values>
+  modified: TFormikModified<Values>
+  initialValues: Values
+  values: Values
+  errors: TFormikErrors<Values>
   setSubmitting: (submitting: boolean) => void
-  setErrors: (errors: IFormikInternalStore["errors"]) => void
+  setErrors: (errors: IFormikInternalStore<Values>["errors"]) => void
   clean: () => void
   lastSuccess: number
   lastFailure: number
@@ -173,16 +187,17 @@ class UndoManager {
   }
 }
 
-export interface IFormikContext {
+export interface IFormikContext<Values> {
   onSubmit: (ev: React.FormEvent<HTMLFormElement>) => void
-  internal: IFormikInternalStore
+  internal: IFormikInternalStore<Values>
 }
 
-export const Formik = React.memo<IFormik>(props => {
-  const [store, setStore] = React.useState<IFormikInternalStore | null>(null)
+// type Formik = IFormik<Values extends IFormikValues = IFormikValues>
+export function Formik<Values extends IFormikValues>(props: IFormik<Values>) {
+  const [store, setStore] = React.useState<IFormikInternalStore<Values> | null>(null)
 
   React.useEffect(() => {
-    const internal = observable<IFormikInternalStore>({
+    const internal = observable<IFormikInternalStore<Values>>({
       lastSuccess: 0,
       lastFailure: 0,
       initialValues: JSON.parse(JSON.stringify(props.initialValues)),
@@ -192,13 +207,13 @@ export const Formik = React.memo<IFormik>(props => {
       modified: {},
       errors: {},
       get dirty() {
-        const store = internal as IFormikInternalStore
+        const store = internal as IFormikInternalStore<Values>
         const modified = store.modified
         const dirty = !!Object.keys(modified).length
         return dirty
       },
       get valid() {
-        const store = internal as IFormikInternalStore
+        const store = internal as IFormikInternalStore<Values>
         const errors = store.errors
         const valid = !Object.keys(errors).length
         return valid
@@ -258,8 +273,12 @@ export const Formik = React.memo<IFormik>(props => {
     // Undo Manager
     if (props.undoManagerBlacklist) {
       internal.undoManager = new UndoManager(internal.values, props.undoManagerBlacklist, (change, path, root) => {
-        const name = (change as any).name as string
+        internal.modified
+        const name = (change as any).name as keyof Values
+        //  as TFormikModified<Values
+        // if(name in internal.values) {
         internal.modified[name] = true
+        // }
       })
 
       win["__undoManager__" + Math.round(Math.random() * 100)] = internal.undoManager // debugging
@@ -313,56 +332,61 @@ export const Formik = React.memo<IFormik>(props => {
   }
 
   return <FormikInternal internal={store} {...props} />
-})
+}
 
-export const FormikInternal = React.memo<IFormik & { internal: IFormikInternalStore }>(
-  ({ schema, children, onSubmit, internal }) => {
-    const ctx = CONTEXTS["formik"]
+type TFormikInternal<Values> = IFormik<Values> & { internal: IFormikInternalStore<Values> }
+export const FormikInternal = <Values extends IFormikValues = IFormikValues>({
+  schema,
+  children,
+  onSubmit,
+  internal
+}: TFormikInternal<Values>) => {
+  const ctx = CONTEXTS["formik"]
 
-    const [actions] = React.useState<TFormikActions>(() => {
-      return {
-        setSubmitting: internal.setSubmitting,
-        setErrors: internal.setErrors
-      }
-    })
+  const [actions] = React.useState<TFormikActions<Values>>(() => {
+    return {
+      setSubmitting: internal.setSubmitting,
+      setErrors: internal.setErrors
+    }
+  })
 
-    const onSubmitWrapped = async (ev: React.FormEvent<HTMLFormElement>) => {
-      if (internal.submitting) return
-      // todo timeout and give a callback to cancel request?
-      internal.submitting = true
+  const onSubmitWrapped = async (ev: React.FormEvent<HTMLFormElement>) => {
+    if (internal.submitting) return
+    // todo timeout and give a callback to cancel request?
+    internal.submitting = true
 
-      for (const key in internal.errors) {
-        delete internal.errors[key as string]
-      }
-
-      try {
-        if (schema) {
-          ev.preventDefault()
-          await schema.validate(internal.values, { abortEarly: false })
-        }
-      } catch (error) {
-        for (const e of error.inner) {
-          internal.errors[e.path] = e.message
-        }
-        internal.submitting = false
-        return
-      }
-
-      onSubmit(ev, internal, actions)
+    for (const key in internal.errors) {
+      delete internal.errors[key as string]
     }
 
-    const ctxData: IFormikContext = {
-      onSubmit: onSubmitWrapped,
-      internal
+    try {
+      if (schema) {
+        ev.preventDefault()
+        await schema.validate(internal.values, { abortEarly: false })
+      }
+    } catch (error) {
+      for (const e of error.inner) {
+        const path = e.path as keyof Values
+        internal.errors[path] = e.message
+      }
+      internal.submitting = false
+      return
     }
 
-    return (
-      <ctx.Provider value={ctxData}>
-        {typeof children === "function" ? children({ ctxData, ctx, internal, actions }) : children}
-      </ctx.Provider>
-    )
+    onSubmit(ev, internal, actions)
   }
-)
+
+  const ctxData: IFormikContext<Values> = {
+    onSubmit: onSubmitWrapped,
+    internal
+  }
+
+  return (
+    <ctx.Provider value={ctxData}>
+      {typeof children === "function" ? children({ ctxData, ctx, internal, actions }) : children}
+    </ctx.Provider>
+  )
+}
 
 type IFieldChildrenFunction = (options: { value: any; touched: boolean; error: any }) => any
 type IFieldChildren = JSX.Element | IFieldChildrenFunction
@@ -377,13 +401,18 @@ interface IField extends React.InputHTMLAttributes<HTMLInputElement> {
   Component?: any
 }
 
-export const useFormikCtx: () => IFormikContext = () => {
-  const ctx = React.useContext(CONTEXTS["formik"]) as IFormikContext
-  return ctx
+export const useFormikCtx = <Values extends IFormikValues = IFormikValues>(): Values => {
+  const ctx = CONTEXTS["formik"] as React.Context<Values>
+  const ctxValues = React.useContext<Values>(ctx)
+  return ctxValues
 }
 
-export const ObserveFormik = ({ children }: { children: (ctx: IFormikContext) => JSX.Element }) => {
-  const ctx = useFormikCtx()
+export const ObserveFormik = <Values extends IFormikValues = IFormikValues>({
+  children
+}: {
+  children: (ctx: Values) => JSX.Element
+}) => {
+  const ctx = useFormikCtx<Values>()
   return useObserver<JSX.Element>(() => {
     return children(ctx)
   })
