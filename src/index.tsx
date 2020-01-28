@@ -345,13 +345,15 @@ export const FormikInternal = <Values extends IFormikValues = IFormikValues>({
 
   const [actions] = React.useState<TFormikActions<Values>>(() => {
     return {
-      setSubmitting: internal.setSubmitting,
-      setErrors: internal.setErrors
+      setErrors: internal.setErrors,
+      setSubmitting: internal.setSubmitting
     }
   })
 
   const onSubmitWrapped = async (ev: React.FormEvent<HTMLFormElement>) => {
-    if (internal.submitting) return
+    if (internal.submitting) {
+      return
+    }
     // todo timeout and give a callback to cancel request?
     internal.submitting = true
 
@@ -377,8 +379,8 @@ export const FormikInternal = <Values extends IFormikValues = IFormikValues>({
   }
 
   const ctxData: IFormikContext<Values> = {
-    onSubmit: onSubmitWrapped,
-    internal
+    internal,
+    onSubmit: onSubmitWrapped
   }
 
   return (
@@ -388,7 +390,14 @@ export const FormikInternal = <Values extends IFormikValues = IFormikValues>({
   )
 }
 
-type IFieldChildrenFunction = (options: { value: any; touched: boolean; error: any }) => any
+type IFieldChildrenFunction = (options: {
+  value: any
+  touched: boolean
+  error: any
+  disabled: boolean
+  onChange: React.ChangeEventHandler<HTMLInputElement>
+  onBlur: React.FocusEventHandler<HTMLInputElement>
+}) => any
 type IFieldChildren = JSX.Element | IFieldChildrenFunction
 
 interface IField extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -401,16 +410,16 @@ interface IField extends React.InputHTMLAttributes<HTMLInputElement> {
   Component?: any
 }
 
-export const useFormikCtx = <Values extends IFormikValues = IFormikValues>(): Values => {
-  const ctx = CONTEXTS["formik"] as React.Context<Values>
-  const ctxValues = React.useContext<Values>(ctx)
+export const useFormikCtx = <Values extends IFormikValues = IFormikValues>(): IFormikContext<Values> => {
+  const ctx = CONTEXTS["formik"] as React.Context<IFormikContext<Values>>
+  const ctxValues = React.useContext(ctx)
   return ctxValues
 }
 
 export const ObserveFormik = <Values extends IFormikValues = IFormikValues>({
   children
 }: {
-  children: (ctx: Values) => JSX.Element
+  children: (ctx: IFormikContext<Values>) => JSX.Element
 }) => {
   const ctx = useFormikCtx<Values>()
   return useObserver<JSX.Element>(() => {
@@ -436,16 +445,17 @@ export const Field = React.memo<IField>(
 
     const ctx = useFormikCtx()
 
-    const onChange = React.useCallback(ev => {
+    const setValue = (value: any) => {
       if (!name) throw new Error("We can't hook to onChange on computed")
-      const value = ev.target.value
-      console.log("formikmmobix on change field", ev, value)
+
       set(ctx.internal.values, name, value)
       const ctxval = get(ctx.internal.values, name)
-      console.log({ ctx, ctxval })
-      if (originalOnChange) {
-        originalOnChange(ev)
-      }
+    }
+    
+    const onChange = React.useCallback((ev) => {
+      let value = ev.target.value
+      setValue(value)
+      console.log("formikmmobix on change field", ev, value, { ctx })
     }, [])
 
     const onBlur = React.useCallback(ev => {
@@ -458,7 +468,7 @@ export const Field = React.memo<IField>(
     }, [])
 
     return useObserver(() => {
-      let value = computedName
+      const value = computedName
         ? ctx.internal.values[computedName](computedId ? String(computedId) : undefined)
         : name
         ? get(ctx.internal.values, name)
@@ -469,26 +479,26 @@ export const Field = React.memo<IField>(
 
       // const changed = !computedName && name && get(ctx.internal.touched, name)
       // const touched = !computedName && name && get(ctx.internal.touched, name)
-      let initialValue = name && get(ctx.internal.initialValues, name)
+      // let initialValue = name && get(ctx.internal.initialValues, name)
       // const initialValueIsOff =
       //   typeof initialValue === "undefined" || initialValue === null
-      const valueIsOff = typeof value === "undefined" || value === null
+      // const valueIsOff = typeof value === "undefined" || value === null
       // alert(typeof value)
       // const touched =
       //   !computedName && name && initialValue !== value && !valueIsOff
-      const touched = name && get(ctx.internal.modified, name)
 
       // ((typeof initialValue === "string" && !!value) ||
       //   typeof initialValue !== "string")
+      const touched = name && get(ctx.internal.modified, name)
       const error = !computedName && name && get(ctx.internal.errors, name)
       const disabled = ctx.internal.submitting
 
       console.log("Field: " + name, {
-        value,
-        name,
-        ctx,
+        computedId,
         computedName,
-        computedId
+        ctx,
+        name,
+        value
       })
 
       const InputComponent = Component || "input"
@@ -501,16 +511,16 @@ export const Field = React.memo<IField>(
         : undefined
 
       if (typeof children === "function") {
-        const extraProps = Component
-        return children({ value, ...extraProps })
+        // const extraProps = Component
+        return children({ value, touched, error, disabled, onChange: setValue, onBlur })
       }
 
       return (
         <InputComponent
-          disabled={disabled}
           {...rest}
           {...extraProps}
           {...{
+            disabled,
             value: value || "",
             type,
             readOnly,
