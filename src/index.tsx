@@ -10,6 +10,7 @@ import {
 import get from "lodash/get"
 import set from "lodash/set"
 import { observable, reaction, IReactionDisposer, values } from "mobx"
+import { Map } from "immutable"
 // import { useLocalStore, useObserver } from "mobx-react";
 // import { computedFn } from "mobx-utils"
 
@@ -59,7 +60,8 @@ export interface IFormik<Values> {
   onSubmit: (
     ev: React.FormEvent<HTMLFormElement>,
     internal: IFormikInternalStore<Values>,
-    actions: TFormikActions<Values>
+    actions: TFormikActions<Values>,
+    validationResult: any
   ) => void
 }
 
@@ -201,7 +203,7 @@ export function Formik<Values extends IFormikValues>(props: IFormik<Values>) {
       lastSuccess: 0,
       lastFailure: 0,
       initialValues: JSON.parse(JSON.stringify(props.initialValues)),
-      values: props.initialValues,
+      values: JSON.parse(JSON.stringify(props.initialValues)),
       submitting: false,
       touched: {},
       modified: {},
@@ -327,6 +329,14 @@ export function Formik<Values extends IFormikValues>(props: IFormik<Values>) {
     }
   }, [])
 
+  React.useEffect(() => {
+    const newValues = JSON.parse(JSON.stringify(props.initialValues))
+    if (store && !Map(newValues).equals(Map(JSON.parse(JSON.stringify(store.initialValues))))) {
+      store.initialValues = newValues
+      store.values = newValues
+    }
+  }, [props.initialValues])
+
   if (!store) {
     return props.FallbackComponent ? <props.FallbackComponent /> : null
   }
@@ -361,10 +371,11 @@ export const FormikInternal = <Values extends IFormikValues = IFormikValues>({
       delete internal.errors[key as string]
     }
 
+    let validationResult: any
     try {
       if (schema) {
         ev.preventDefault()
-        await schema.validate(internal.values, { abortEarly: false })
+        validationResult = await schema.validate(internal.values, { abortEarly: false })
       }
     } catch (error) {
       for (const e of error.inner) {
@@ -372,10 +383,11 @@ export const FormikInternal = <Values extends IFormikValues = IFormikValues>({
         internal.errors[path] = e.message
       }
       internal.submitting = false
+      // ABORT IF ERROR
       return
     }
 
-    onSubmit(ev, internal, actions)
+    onSubmit(ev, internal, actions, validationResult)
   }
 
   const ctxData: IFormikContext<Values> = {
@@ -451,8 +463,8 @@ export const Field = React.memo<IField>(
       set(ctx.internal.values, name, value)
       const ctxval = get(ctx.internal.values, name)
     }
-    
-    const onChange = React.useCallback((ev) => {
+
+    const onChange = React.useCallback(ev => {
       let value = ev.target.value
       setValue(value)
       console.log("formikmmobix on change field", ev, value, { ctx })

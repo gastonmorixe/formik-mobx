@@ -55,6 +55,7 @@
     "react-dom": "experimental || >= 16.11.x"
   },
   "dependencies": {
+    "immutable": "^4.0.0-rc.12",
     "lodash": "^4.17.15",
     "mobx": "^5.15.1",
     "mobx-react-lite": "^1.5.2",
